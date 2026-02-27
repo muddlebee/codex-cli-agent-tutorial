@@ -32,6 +32,71 @@ function getString(value: unknown): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
+interface EventEnvelope {
+  rawName: string;
+  normalizedName: string;
+  params: Record<string, unknown>;
+  item: Record<string, unknown>;
+}
+
+function normalizeEventName(name: string): string {
+  return name.replaceAll("/", ".").toLowerCase();
+}
+
+function toEnvelope(data: Record<string, unknown>): EventEnvelope {
+  const rawName = pullName(data);
+  const normalizedName = normalizeEventName(rawName);
+  const params = (data.params ?? data) as Record<string, unknown>;
+  const item = (params.item ?? {}) as Record<string, unknown>;
+  return { rawName, normalizedName, params, item };
+}
+
+function isEvent(name: string, expected: string): boolean {
+  return name.includes(expected);
+}
+
+function itemType(envelope: EventEnvelope): string {
+  return getString(envelope.params.itemType) ?? getString(envelope.item.type) ?? "item";
+}
+
+function itemId(envelope: EventEnvelope): string | undefined {
+  return getString(envelope.params.id) ?? getString(envelope.item.id);
+}
+
+function mapItemStarted(envelope: EventEnvelope): RuntimeEvent {
+  return {
+    type: "item_started",
+    itemType: itemType(envelope),
+    id: itemId(envelope)
+  };
+}
+
+function mapItemUpdated(envelope: EventEnvelope): RuntimeEvent {
+  return {
+    type: "item_updated",
+    itemType: itemType(envelope),
+    id: itemId(envelope),
+    delta: getString(envelope.params.delta) ?? getString(envelope.item.delta)
+  };
+}
+
+function mapItemCompleted(envelope: EventEnvelope): RuntimeEvent {
+  const type = itemType(envelope);
+  const text = getString(envelope.item.text);
+
+  if (type === "agent_message" && text) {
+    // Newer Codex exec responses may emit final assistant text here.
+    return { type: "assistant_delta", text };
+  }
+
+  return {
+    type: "item_completed",
+    itemType: type,
+    id: itemId(envelope),
+    summary: getString(envelope.params.summary) ?? text
+  };
+}
+
 /**
  * Maps one raw JSONL event line from `codex exec --json` into the internal
  * RuntimeEvent union used by the rest of the CLI.
@@ -44,64 +109,41 @@ export function mapCodexEvent(line: string): RuntimeEvent {
       return { type: "raw", name: "unparsed", payload: parsed };
     }
 
-    const data = check.data as Record<string, unknown>;
-    const name = pullName(data);
-    const params = (data.params ?? data) as Record<string, unknown>;
+    const envelope = toEnvelope(check.data as Record<string, unknown>);
+    const { rawName, normalizedName, params } = envelope;
 
-    // Mapping is intentionally loose to survive minor Codex event-shape changes.
-    if (name.includes("agentMessage") && typeof params.delta === "string") {
+    if (isEvent(normalizedName, "agentmessage") && typeof params.delta === "string") {
       return { type: "assistant_delta", text: params.delta };
     }
-    if (name.includes("item/started") || name.includes("item.started")) {
-      const item = (params.item ?? {}) as Record<string, unknown>;
-      const itemType = getString(params.itemType) ?? getString(item.type) ?? "item";
-      const id = getString(params.id) ?? getString(item.id);
-      return { type: "item_started", itemType, id };
+    if (isEvent(normalizedName, "item.started")) {
+      return mapItemStarted(envelope);
     }
-    if (name.includes("item/updated") || name.includes("item.updated")) {
-      const item = (params.item ?? {}) as Record<string, unknown>;
-      const itemType = getString(params.itemType) ?? getString(item.type) ?? "item";
-      const id = getString(params.id) ?? getString(item.id);
-      const delta = getString(params.delta) ?? getString(item.delta);
-      return {
-        type: "item_updated",
-        itemType,
-        id,
-        delta
-      };
+    if (isEvent(normalizedName, "item.updated")) {
+      return mapItemUpdated(envelope);
     }
-    if (name.includes("item/completed") || name.includes("item.completed")) {
-      const item = (params.item ?? {}) as Record<string, unknown>;
-      const itemType = getString(params.itemType) ?? getString(item.type) ?? "item";
-      const id = getString(params.id) ?? getString(item.id);
-      const text = getString(item.text);
-      if (itemType === "agent_message" && text) {
-        // Newer Codex event shape sends full assistant text in item.completed.
-        return { type: "assistant_delta", text };
-      }
-      return {
-        type: "item_completed",
-        itemType,
-        id,
-        summary: getString(params.summary) ?? text
-      };
+    if (isEvent(normalizedName, "item.completed")) {
+      return mapItemCompleted(envelope);
     }
-    if (name.includes("requestApproval")) {
-      const kind = name.includes("command") ? "command" : name.includes("file") ? "file_change" : "unknown";
+    if (isEvent(normalizedName, "requestapproval")) {
+      const kind = normalizedName.includes("command")
+        ? "command"
+        : normalizedName.includes("file")
+          ? "file_change"
+          : "unknown";
       return { type: "approval_required", kind, payload: params };
     }
-    if (name.includes("turn/completed") || name.includes("turn.completed") || name.includes("TurnCompleted")) {
+    if (isEvent(normalizedName, "turn.completed")) {
       const usage = (params.usage ?? undefined) as Record<string, number> | undefined;
       return { type: "turn_completed", usage };
     }
-    if (name.includes("turn/failed") || name.includes("turn.failed") || name.includes("TurnFailed")) {
+    if (isEvent(normalizedName, "turn.failed")) {
       return { type: "turn_failed", error: String(params.error ?? "turn failed") };
     }
-    if (name.includes("error")) {
+    if (isEvent(normalizedName, "error")) {
       return { type: "error", error: String(params.message ?? params.error ?? "unknown error") };
     }
 
-    return { type: "raw", name, payload: params };
+    return { type: "raw", name: rawName, payload: params };
   } catch {
     return { type: "raw", name: "invalid_json", payload: line };
   }
