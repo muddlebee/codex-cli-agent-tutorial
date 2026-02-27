@@ -13,10 +13,20 @@ import { renderEvent } from "./render.js";
 import { TodoManager } from "../core/todo-manager.js";
 import { handleTodoCommand } from "./todo.js";
 import { createProvider, createSessionProvider } from "../providers/factory.js";
+import type { InteractiveSessionProvider } from "../types/events.js";
+
+function asInteractive(provider: unknown): InteractiveSessionProvider | null {
+  if (!provider || typeof provider !== "object") {
+    return null;
+  }
+  const p = provider as Partial<InteractiveSessionProvider>;
+  return typeof p.respondApproval === "function" ? (p as InteractiveSessionProvider) : null;
+}
 
 export async function runChat(resumeId?: string): Promise<void> {
   const provider = createProvider();
   const sessionProvider = createSessionProvider();
+  const interactiveProvider = asInteractive(sessionProvider);
   let sessionId = resumeId;
   let rpcThreadId: string | null = null;
   let existingSession = null;
@@ -79,6 +89,14 @@ export async function runChat(resumeId?: string): Promise<void> {
     for await (const event of eventStream) {
       renderEvent(event);
       await appendEvent(sessionId, event);
+      if (event.type === "approval_required" && interactiveProvider) {
+        const requestId = (event.payload as Record<string, unknown>).requestId;
+        if (typeof requestId === "string" || typeof requestId === "number") {
+          const answer = (await rl.question("approve action? [y/N] ")).trim().toLowerCase();
+          const allow = answer === "y" || answer === "yes";
+          await interactiveProvider.respondApproval(requestId, allow);
+        }
+      }
       if (event.type === "assistant_delta") {
         assistantBuffer += event.text;
       }

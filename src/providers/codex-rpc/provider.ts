@@ -1,15 +1,18 @@
-import type { ProviderRunOptions, RuntimeEvent, SessionProvider } from "../../types/events.js";
-import { JsonRpcClient } from "./jsonrpc-client.js";
+import type { InteractiveSessionProvider, ProviderRunOptions, RuntimeEvent } from "../../types/events.js";
+import { JsonRpcClient, type JsonRpcMessage } from "./jsonrpc-client.js";
 
-function mapNotification(method: string, params: Record<string, unknown>): RuntimeEvent | null {
+function mapNotification(message: JsonRpcMessage): RuntimeEvent | null {
+  const method = message.method ?? "unknown";
+  const params = (message.params ?? {}) as Record<string, unknown>;
   if (method.includes("agentMessage") && typeof params.delta === "string") {
     return { type: "assistant_delta", text: params.delta };
   }
   if (method === "item/commandExecution/requestApproval" || method === "item/fileChange/requestApproval") {
+    const requestId = message.id;
     return {
       type: "approval_required",
       kind: method.includes("command") ? "command" : "file_change",
-      payload: params
+      payload: { requestId, ...params }
     };
   }
   if (method === "turn/completed") {
@@ -24,7 +27,7 @@ function mapNotification(method: string, params: Record<string, unknown>): Runti
   return { type: "raw", name: method, payload: params };
 }
 
-export class CodexRpcProvider implements SessionProvider {
+export class CodexRpcProvider implements InteractiveSessionProvider {
   private client: JsonRpcClient | null = null;
 
   private async ensureClient(): Promise<JsonRpcClient> {
@@ -70,8 +73,7 @@ export class CodexRpcProvider implements SessionProvider {
         if (!note.method) {
           continue;
         }
-        const params = (note.params ?? {}) as Record<string, unknown>;
-        const mapped = mapNotification(note.method, params);
+        const mapped = mapNotification(note);
         if (mapped) {
           yield mapped;
           if (mapped.type === "turn_completed" || mapped.type === "turn_failed") {
@@ -83,5 +85,20 @@ export class CodexRpcProvider implements SessionProvider {
         await new Promise((resolve) => setTimeout(resolve, 20));
       }
     }
+  }
+
+  async steerTurn(sessionId: string, input: string): Promise<void> {
+    const client = await this.ensureClient();
+    await client.request("turn/steer", { threadId: sessionId, input });
+  }
+
+  async interruptTurn(sessionId: string): Promise<void> {
+    const client = await this.ensureClient();
+    await client.request("turn/interrupt", { threadId: sessionId });
+  }
+
+  async respondApproval(requestId: string | number, allow: boolean): Promise<void> {
+    const client = await this.ensureClient();
+    client.respond(requestId, { approved: allow, decision: allow ? "approve" : "deny" });
   }
 }

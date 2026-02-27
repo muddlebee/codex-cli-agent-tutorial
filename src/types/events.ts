@@ -23,3 +23,9 @@ export interface SessionProvider extends Provider {
   sendTurn(sessionId: string, input: string): AsyncGenerator<RuntimeEvent>;
   resumeSession(sessionId: string): Promise<boolean>;
 }
+
+export interface InteractiveSessionProvider extends SessionProvider {
+  steerTurn(sessionId: string, input: string): Promise<void>;
+  interruptTurn(sessionId: string): Promise<void>;
+  respondApproval(requestId: string | number, allow: boolean): Promise<void>;
+}

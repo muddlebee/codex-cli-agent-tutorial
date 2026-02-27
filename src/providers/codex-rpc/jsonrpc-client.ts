@@ -2,7 +2,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 
 export interface JsonRpcMessage {
   jsonrpc?: string;
-  id?: number;
+  id?: number | string;
   method?: string;
   params?: Record<string, unknown>;
   result?: unknown;
@@ -97,6 +97,15 @@ export class JsonRpcClient {
       jsonrpc: "2.0",
       method,
       params
+    };
+    this.child.stdin.write(JSON.stringify(payload) + "\n", "utf8");
+  }
+
+  respond(id: number | string, result: Record<string, unknown>): void {
+    const payload = {
+      jsonrpc: "2.0",
+      id,
+      result
     };
     this.child.stdin.write(JSON.stringify(payload) + "\n", "utf8");
   }
