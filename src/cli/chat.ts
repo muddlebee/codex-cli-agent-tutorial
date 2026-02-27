@@ -15,6 +15,23 @@ import { handleTodoCommand } from "./todo.js";
 import { createProvider, createSessionProvider } from "../providers/factory.js";
 import type { InteractiveSessionProvider } from "../types/events.js";
 
+/**
+ * Interactive chat loop with session persistence and todo planning.
+ * 
+ * Flow:
+ * 1. Create or resume session (local session ID)
+ * 2. In RPC mode, start or resume remote thread (map to local session)
+ * 3. REPL loop: read user input → handle /todo commands → execute turn → persist
+ * 4. Todo context is injected into every prompt automatically
+ * 5. Approval requests pause the stream and ask the user
+ * 
+ * Design decisions:
+ * - Synchronous turns: one at a time, simplifies state management
+ * - Slash commands: intercepted before sending to agent
+ * - Approval handling: blocks event stream until user responds
+ * - Provider abstraction: same code works for exec and RPC modes
+ */
+
 function asInteractive(provider: unknown): InteractiveSessionProvider | null {
   if (!provider || typeof provider !== "object") {
     return null;
@@ -44,6 +61,7 @@ export async function runChat(resumeId?: string): Promise<void> {
 
   if (sessionProvider) {
     // In RPC mode we maintain a remote thread and map it to local session metadata.
+    // This bridges the gap between local file-based sessions and remote RPC threads.
     if (resumeId && existingSession?.remoteThreadId) {
       const resumed = await sessionProvider.resumeSession(existingSession.remoteThreadId);
       if (!resumed) {
@@ -82,6 +100,7 @@ export async function runChat(resumeId?: string): Promise<void> {
     const transcript = await readTranscript(sessionId);
     const todoContext = await todoManager.renderForPrompt();
     // Prompt assembly keeps the model stateless from the transport perspective.
+    // History + todo context is injected into every turn to maintain continuity.
     const prompt = `${buildHistoryPrompt(transcript, line)}\n\nCurrent todos:\n${todoContext}`;
 
     let assistantBuffer = "";
@@ -92,7 +111,8 @@ export async function runChat(resumeId?: string): Promise<void> {
       renderEvent(event);
       await appendEvent(sessionId, event);
       if (event.type === "approval_required" && interactiveProvider) {
-        // Approval requests are paused here and resolved by the user in-band.
+        // Approval requests pause the event stream until the user responds.
+        // This ensures the agent doesn't proceed without explicit permission.
         const requestId = (event.payload as Record<string, unknown>).requestId;
         if (typeof requestId === "string" || typeof requestId === "number") {
           const answer = (await rl.question("approve action? [y/N] ")).trim().toLowerCase();

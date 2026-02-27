@@ -2,6 +2,24 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
+/**
+ * TodoManager provides explicit planning state for chat sessions.
+ * 
+ * Design constraints (intentional for tutorial scenarios):
+ * - Max 20 todos: keeps prompts and state manageable
+ * - Only one in_progress at a time: enforces serial focus
+ * 
+ * Why explicit planning?
+ * - Conversation memory alone is not planning
+ * - Todos give the agent (and user) a "working memory" surface
+ * - Injecting todo context into prompts keeps the agent aware of the plan
+ * 
+ * Production considerations:
+ * - More sophisticated task graphs (dependencies, priorities)
+ * - Automatic todo extraction from conversation
+ * - Integration with external project management tools
+ */
+
 export type TodoStatus = "pending" | "in_progress" | "completed";
 
 export interface TodoItem {
@@ -37,6 +55,7 @@ export class TodoManager {
   async add(text: string): Promise<TodoItem> {
     const state = await this.read();
     // A hard cap keeps prompts and state manageable for tutorial scenarios.
+    // This constraint is pedagogical: it forces thinking about priorities.
     if (state.items.length >= 20) {
       throw new Error("todo limit reached (max 20)");
     }
@@ -56,6 +75,7 @@ export class TodoManager {
 
     if (status === "in_progress") {
       // Enforce single active task to encourage serial focus.
+      // This prevents the agent (and user) from context-switching across too many tasks.
       const active = state.items.filter((item) => item.status === "in_progress" && item.id !== id);
       if (active.length > 0) {
         throw new Error("only one in_progress todo allowed");

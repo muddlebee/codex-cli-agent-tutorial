@@ -4,6 +4,23 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import type { RuntimeEvent } from "../types/events.js";
 
+/**
+ * SessionStore manages local persistence for chat sessions.
+ * 
+ * Storage layout per session:
+ * .nano-agent/sessions/<uuid>/
+ *   ├── meta.json          # Session metadata (id, timestamps, remoteThreadId)
+ *   ├── transcript.jsonl   # User/assistant message pairs (append-only)
+ *   ├── events.jsonl       # Raw runtime events for debugging
+ *   └── todo.json          # Planning state (managed by TodoManager)
+ * 
+ * Design decisions:
+ * - JSONL for transcripts/events: append-only, human-readable, easy to stream/tail
+ * - File-based storage: no database dependencies, easy to inspect/debug
+ * - UUID session IDs: collision-resistant, no central coordination needed
+ * - remoteThreadId mapping: bridges local sessions to RPC provider threads
+ */
+
 export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
@@ -75,6 +92,7 @@ export async function setRemoteThreadId(id: string, remoteThreadId: string): Pro
 export async function appendTranscript(id: string, message: ChatMessage): Promise<void> {
   await mkdir(sessionDir(id), { recursive: true });
   // JSONL keeps appends cheap and makes manual debugging straightforward.
+  // No need to parse/rewrite the entire file for each message.
   await writeFile(transcriptPath(id), JSON.stringify(message) + "\n", { encoding: "utf8", flag: "a" });
   await touchSession(id);
 }
@@ -120,6 +138,10 @@ export async function listSessions(): Promise<SessionMeta[]> {
 
 export function buildHistoryPrompt(messages: ChatMessage[], userInput: string): string {
   // Keep history bounded to limit prompt growth and runaway token usage.
+  // For production, consider more sophisticated strategies:
+  // - Summarization of old messages
+  // - Sliding window with importance scoring
+  // - Separate long-term memory store
   const history = messages
     .slice(-20)
     .map((msg) => `${msg.role.toUpperCase()}: ${msg.content}`)

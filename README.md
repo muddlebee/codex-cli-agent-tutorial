@@ -1,43 +1,108 @@
 # nano-agent
 
-Incremental nano agent CLI built on Codex APIs (no direct OpenAI SDK usage).
+A production-ready CLI agent built on Codex APIs. Learn by reading and running existing code.
 
-## Tutorial Mode
+## Tutorial
 
-This repo is a single evolving CLI.
-Primary learning path is a rolling, step-by-step build guide from current `main`.
+**[📚 Start the Complete Tutorial →](docs/TUTORIAL.md)**
 
-Read in order:
+This tutorial walks you through the entire architecture in one comprehensive guide:
 
-- [Overview](docs/tutorial-overview.md)
-- [Rolling Step-by-Step Build](docs/rolling-step-by-step.md)
-- [m0 Deep Dive](docs/m0.md)
-- [m1 Deep Dive](docs/m1.md)
-- [m2 Deep Dive](docs/m2.md)
-- [m3 Deep Dive](docs/m3.md)
-- [m4 Deep Dive](docs/m4.md)
+- Part 1: CLI Entry Point and Command Routing
+- Part 2: The Exec Provider — First Control Plane
+- Part 3: Session Persistence and Chat Loop
+- Part 4: Planning Layer with Todos
+- Part 5: Provider Abstraction and Mode Switching
+- Part 6: App-Server RPC Transport
+- Part 7: Interactive Runtime Controls
 
-Checkpoint tags still exist (`m0..m4`) if you want to inspect historical states, but they are optional.
-
-## Milestones
-
-| Milestone | Goal | Checkpoint |
-|---|---|---|
-| m0 | Codex exec JSONL adapter + `run` command | `m0` ([docs](docs/m0.md)) |
-| m1 | Interactive chat + persistence | `m1` ([docs](docs/m1.md)) |
-| m2 | Todo planning layer | `m2` ([docs](docs/m2.md)) |
-| m3 | App-server RPC provider | `m3` ([docs](docs/m3.md)) |
-| m4 | Approvals + steer/interrupt | `m4` ([docs](docs/m4.md)) |
+**No git checkouts needed.** Stay on `main` and follow along.
 
 ## Quick Start
 
 ```bash
+# Clone and setup
+git clone <repo-url>
+cd codex-tuts
 npm install
+npm run lint
+npm test
+
+# Try the CLI
 npm run dev -- run "summarize this repository"
 npm run dev -- chat
-# Switch provider
+npm run dev -- sessions
+
+# RPC mode (requires codex-app-server)
 NANO_PROVIDER=rpc npm run dev -- chat
-# In rpc mode
-NANO_PROVIDER=rpc npm run dev -- steer <sessionId> "take a different direction"
-NANO_PROVIDER=rpc npm run dev -- interrupt <sessionId>
 ```
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `run "<task>"` | One-shot task execution |
+| `chat` | Interactive multi-turn chat with memory |
+| `chat --resume <id>` | Resume a previous session |
+| `sessions` | List all stored sessions |
+| `steer <id> "<text>"` | Steer an active turn (RPC only) |
+| `interrupt <id>` | Interrupt a running turn (RPC only) |
+
+## Architecture Highlights
+
+- **Transport Abstraction**: Exec and RPC providers implement the same interface
+- **Event Normalization**: All transport events map to `RuntimeEvent` union
+- **Local-First Persistence**: Sessions stored as files (JSONL), not in a database
+- **Explicit Planning**: Todo manager gives the agent working memory
+- **Progressive Enhancement**: Exec mode works out-of-the-box, RPC adds features
+
+## Prerequisites
+
+- Node.js 20+
+- npm 10+
+- Codex CLI installed and authenticated
+- (For RPC features) `codex-app-server` available in PATH
+
+## What You'll Learn
+
+By working through this tutorial, you'll understand:
+
+- How to spawn and manage child processes for agent execution
+- JSONL parsing and incremental stream processing
+- Event normalization across different transport layers
+- Session persistence with append-only JSONL files
+- Multi-turn conversation memory management
+- Explicit planning state with todo constraints
+- JSON-RPC 2.0 protocol over stdio
+- Async generator patterns for event streaming
+- Provider abstraction for transport-agnostic code
+- Interactive runtime controls (approvals, steering, interruption)
+
+## Project Structure
+
+```
+src/
+├── index.ts                    # CLI entry point
+├── cli/
+│   ├── chat.ts                # Interactive chat loop
+│   ├── render.ts              # Event rendering
+│   ├── todo.ts                # Todo slash commands
+│   └── list-sessions.ts       # Session listing
+├── core/
+│   ├── session-store.ts       # Session persistence
+│   └── todo-manager.ts        # Todo state management
+├── providers/
+│   ├── factory.ts             # Provider selection
+│   ├── codex-exec/
+│   │   ├── provider.ts        # Exec provider
+│   │   └── jsonl.ts           # JSONL parsing
+│   └── codex-rpc/
+│       ├── provider.ts        # RPC provider
+│       └── jsonrpc-client.ts  # JSON-RPC client
+└── types/
+    └── events.ts              # Event types and interfaces
+```
+
+## License
+
+MIT

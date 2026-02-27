@@ -1,5 +1,20 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 
+/**
+ * JsonRpcClient manages JSON-RPC 2.0 communication over stdio.
+ * 
+ * Protocol assumptions:
+ * - Newline-delimited JSON messages (not Content-Length headers)
+ * - Requests have numeric IDs and expect responses
+ * - Notifications have no ID and expect no response
+ * - Server notifications are queued for polling (not callback-based)
+ * 
+ * Design decisions:
+ * - Polling over callbacks: simpler async flow, avoids callback hell
+ * - Stateful buffer: handles arbitrary chunk boundaries from stdout
+ * - Promise-based requests: natural async/await integration
+ */
+
 export interface JsonRpcMessage {
   jsonrpc?: string;
   id?: number | string;
@@ -35,6 +50,7 @@ export class JsonRpcClient {
 
   private onData(chunk: string): void {
     // We currently assume newline-delimited JSON-RPC messages over stdio.
+    // This is simpler than Content-Length headers but requires line-based parsing.
     this.buffer += chunk;
     let idx = this.buffer.indexOf("\n");
     while (idx >= 0) {
@@ -64,6 +80,7 @@ export class JsonRpcClient {
 
   async initialize(): Promise<void> {
     // Minimal v2 handshake before issuing thread/turn calls.
+    // This establishes protocol version and capabilities with the server.
     await this.request("initialize", {
       protocolVersion: 2,
       capabilities: {

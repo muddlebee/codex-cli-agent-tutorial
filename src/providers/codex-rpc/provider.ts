@@ -1,6 +1,28 @@
 import type { InteractiveSessionProvider, ProviderRunOptions, RuntimeEvent } from "../../types/events.js";
 import { JsonRpcClient, type JsonRpcMessage } from "./jsonrpc-client.js";
 
+/**
+ * CodexRpcProvider implements the full InteractiveSessionProvider interface
+ * using codex-app-server's JSON-RPC API.
+ * 
+ * Key differences from CodexExecProvider:
+ * - Persistent threads: conversations survive across CLI invocations
+ * - Turn-level control: steer and interrupt active turns
+ * - Approval responses: interactive decision-making for agent actions
+ * 
+ * Architecture:
+ * 1. Spawn codex-app-server as child process
+ * 2. Initialize handshake (protocol v2)
+ * 3. thread/start → get threadId (or thread/resume for existing)
+ * 4. turn/start → poll notifications until turn/completed
+ * 5. Map notifications to RuntimeEvent (same as exec provider)
+ * 
+ * Design decisions:
+ * - Lazy client initialization: only spawn app-server when needed
+ * - Polling notifications: simpler than callback-based event handling
+ * - runTask() compatibility: wraps startSession + sendTurn for CLI `run` command
+ */
+
 function mapNotification(message: JsonRpcMessage): RuntimeEvent | null {
   const method = message.method ?? "unknown";
   const params = (message.params ?? {}) as Record<string, unknown>;
@@ -40,6 +62,7 @@ export class CodexRpcProvider implements InteractiveSessionProvider {
 
   async *runTask(input: string, _options?: ProviderRunOptions): AsyncGenerator<RuntimeEvent> {
     // One-shot compatibility path so CLI `run` works in either provider mode.
+    // Creates a throwaway thread for single-turn execution.
     const sessionId = await this.startSession();
     for await (const event of this.sendTurn(sessionId, input)) {
       yield event;
@@ -70,6 +93,7 @@ export class CodexRpcProvider implements InteractiveSessionProvider {
     let done = false;
     while (!done) {
       // Notifications are polled in short intervals to keep implementation simple.
+      // Alternative: event-driven with callbacks, but that complicates async flow.
       const notifications = client.drainNotifications();
       for (const note of notifications) {
         if (!note.method) {

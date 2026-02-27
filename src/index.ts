@@ -4,6 +4,22 @@ import { runListSessions } from "./cli/list-sessions.js";
 import { createProvider, createSessionProvider, providerMode } from "./providers/factory.js";
 import type { InteractiveSessionProvider } from "./types/events.js";
 
+/**
+ * nano-agent CLI entry point.
+ * 
+ * Commands:
+ * - run "<task>": One-shot task execution (works in exec or RPC mode)
+ * - chat [--resume <id>]: Interactive multi-turn chat with persistence
+ * - sessions: List all stored sessions
+ * - steer <id> "<text>": Inject new input mid-turn (RPC only)
+ * - interrupt <id>: Cancel running turn (RPC only)
+ * 
+ * Design decisions:
+ * - Simple argv parsing: no heavy dependencies
+ * - Provider selection via NANO_PROVIDER env var
+ * - Error handling uses process.exitCode (no unhandled rejections)
+ */
+
 async function runCommand(task: string): Promise<void> {
   // `run` is intentionally transport-agnostic. Provider selection happens in the factory.
   const provider = createProvider();
