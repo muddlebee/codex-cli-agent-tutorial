@@ -1,0 +1,30 @@
+{
+  "name": "nano-agent",
+  "version": "0.1.0",
+  "description": "Incremental nano agent CLI built on Codex APIs",
+  "type": "module",
+  "bin": {
+    "nano-agent": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx src/index.ts",
+    "test": "tsx --test tests/unit/*.test.ts",
+    "lint": "tsc --noEmit"
+  },
+  "keywords": [
+    "codex",
+    "agent",
+    "cli"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "zod": "^4.1.11"
+  },
+  "devDependencies": {
+    "@types/node": "^24.6.1",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
+  }
+}
