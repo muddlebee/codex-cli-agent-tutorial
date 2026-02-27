@@ -14,6 +14,7 @@ export interface SessionMeta {
   id: string;
   createdAt: string;
   updatedAt: string;
+  remoteThreadId?: string;
 }
 
 const BASE_DIR = join(process.cwd(), ".nano-agent", "sessions");
@@ -57,6 +58,16 @@ export async function touchSession(id: string): Promise<void> {
   if (!existing) {
     return;
   }
+  existing.updatedAt = new Date().toISOString();
+  await writeFile(metaPath(id), JSON.stringify(existing, null, 2) + "\n", "utf8");
+}
+
+export async function setRemoteThreadId(id: string, remoteThreadId: string): Promise<void> {
+  const existing = await loadSession(id);
+  if (!existing) {
+    return;
+  }
+  existing.remoteThreadId = remoteThreadId;
   existing.updatedAt = new Date().toISOString();
   await writeFile(metaPath(id), JSON.stringify(existing, null, 2) + "\n", "utf8");
 }

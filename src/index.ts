@@ -1,10 +1,10 @@
-import { CodexExecProvider } from "./providers/codex-exec/provider.js";
 import { renderEvent } from "./cli/render.js";
 import { runChat } from "./cli/chat.js";
 import { runListSessions } from "./cli/list-sessions.js";
+import { createProvider, providerMode } from "./providers/factory.js";
 
 async function runCommand(task: string): Promise<void> {
-  const provider = new CodexExecProvider();
+  const provider = createProvider();
   for await (const event of provider.runTask(task, { cwd: process.cwd() })) {
     renderEvent(event);
   }
@@ -15,6 +15,7 @@ function usage(): void {
   process.stdout.write("  nano-agent run \"<task>\"\n");
   process.stdout.write("  nano-agent chat [--resume <sessionId>]\n");
   process.stdout.write("  nano-agent sessions\n");
+  process.stdout.write("\nProvider selection: set NANO_PROVIDER=exec|rpc (default: exec)\n");
 }
 
 async function main(): Promise<void> {
@@ -33,6 +34,7 @@ async function main(): Promise<void> {
   if (cmd === "chat") {
     const resumeIndex = rest.indexOf("--resume");
     const resumeId = resumeIndex >= 0 ? rest[resumeIndex + 1] : undefined;
+    process.stdout.write(`provider: ${providerMode()}\n`);
     await runChat(resumeId);
     return;
   }

@@ -1,23 +1,50 @@
 import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
-import { CodexExecProvider } from "../providers/codex-exec/provider.js";
-import { appendEvent, appendTranscript, buildHistoryPrompt, createSession, loadSession, readTranscript } from "../core/session-store.js";
+import {
+  appendEvent,
+  appendTranscript,
+  buildHistoryPrompt,
+  createSession,
+  loadSession,
+  readTranscript,
+  setRemoteThreadId
+} from "../core/session-store.js";
 import { renderEvent } from "./render.js";
 import { TodoManager } from "../core/todo-manager.js";
 import { handleTodoCommand } from "./todo.js";
+import { createProvider, createSessionProvider } from "../providers/factory.js";
 
 export async function runChat(resumeId?: string): Promise<void> {
-  const provider = new CodexExecProvider();
+  const provider = createProvider();
+  const sessionProvider = createSessionProvider();
   let sessionId = resumeId;
+  let rpcThreadId: string | null = null;
+  let existingSession = null;
 
   if (sessionId) {
-    const found = await loadSession(sessionId);
-    if (!found) {
+    existingSession = await loadSession(sessionId);
+    if (!existingSession) {
       throw new Error(`session not found: ${sessionId}`);
     }
   } else {
     const session = await createSession();
     sessionId = session.id;
+    existingSession = session;
+  }
+
+  if (sessionProvider) {
+    if (resumeId && existingSession?.remoteThreadId) {
+      const resumed = await sessionProvider.resumeSession(existingSession.remoteThreadId);
+      if (!resumed) {
+        throw new Error(`could not resume rpc thread: ${existingSession.remoteThreadId}`);
+      }
+      rpcThreadId = existingSession.remoteThreadId;
+    } else if (resumeId && !existingSession?.remoteThreadId) {
+      throw new Error("session exists but has no rpc thread mapping");
+    } else {
+      rpcThreadId = await sessionProvider.startSession();
+      await setRemoteThreadId(sessionId, rpcThreadId);
+    }
   }
 
   output.write(`session: ${sessionId}\n`);
@@ -46,7 +73,10 @@ export async function runChat(resumeId?: string): Promise<void> {
     const prompt = `${buildHistoryPrompt(transcript, line)}\n\nCurrent todos:\n${todoContext}`;
 
     let assistantBuffer = "";
-    for await (const event of provider.runTask(prompt, { cwd: process.cwd() })) {
+    const eventStream = sessionProvider && rpcThreadId
+      ? sessionProvider.sendTurn(rpcThreadId, prompt)
+      : provider.runTask(prompt, { cwd: process.cwd() });
+    for await (const event of eventStream) {
       renderEvent(event);
       await appendEvent(sessionId, event);
       if (event.type === "assistant_delta") {

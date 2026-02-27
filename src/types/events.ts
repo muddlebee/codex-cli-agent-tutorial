@@ -17,3 +17,9 @@ export interface ProviderRunOptions {
 export interface Provider {
   runTask(input: string, options?: ProviderRunOptions): AsyncGenerator<RuntimeEvent>;
 }
+
+export interface SessionProvider extends Provider {
+  startSession(): Promise<string>;
+  sendTurn(sessionId: string, input: string): AsyncGenerator<RuntimeEvent>;
+  resumeSession(sessionId: string): Promise<boolean>;
+}
