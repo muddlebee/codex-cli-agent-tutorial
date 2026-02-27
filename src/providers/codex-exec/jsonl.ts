@@ -9,6 +9,7 @@ const AnyEvent = z.object({
 }).passthrough();
 
 export function parseJsonlChunk(buffer: string): { lines: string[]; rest: string } {
+  // Keep the trailing partial line for the next chunk.
   const parts = buffer.split("\n");
   const rest = parts.pop() ?? "";
   const lines = parts.filter((line) => line.trim().length > 0);
@@ -31,6 +32,7 @@ export function mapCodexEvent(line: string): RuntimeEvent {
     const name = pullName(data);
     const params = (data.params ?? data) as Record<string, unknown>;
 
+    // Mapping is intentionally loose to survive minor Codex event-shape changes.
     if (name.includes("agentMessage") && typeof params.delta === "string") {
       return { type: "assistant_delta", text: params.delta };
     }

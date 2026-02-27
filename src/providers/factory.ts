@@ -8,6 +8,7 @@ export function providerMode(): "exec" | "rpc" {
 }
 
 export function createProvider(): Provider {
+  // Default to exec so local setup works even without app-server installed.
   return providerMode() === "rpc" ? new CodexRpcProvider() : new CodexExecProvider();
 }
 

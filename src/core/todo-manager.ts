@@ -36,6 +36,7 @@ export class TodoManager {
 
   async add(text: string): Promise<TodoItem> {
     const state = await this.read();
+    // A hard cap keeps prompts and state manageable for tutorial scenarios.
     if (state.items.length >= 20) {
       throw new Error("todo limit reached (max 20)");
     }
@@ -54,6 +55,7 @@ export class TodoManager {
     }
 
     if (status === "in_progress") {
+      // Enforce single active task to encourage serial focus.
       const active = state.items.filter((item) => item.status === "in_progress" && item.id !== id);
       if (active.length > 0) {
         throw new Error("only one in_progress todo allowed");

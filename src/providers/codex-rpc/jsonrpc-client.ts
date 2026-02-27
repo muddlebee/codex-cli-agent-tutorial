@@ -34,6 +34,7 @@ export class JsonRpcClient {
   }
 
   private onData(chunk: string): void {
+    // We currently assume newline-delimited JSON-RPC messages over stdio.
     this.buffer += chunk;
     let idx = this.buffer.indexOf("\n");
     while (idx >= 0) {
@@ -62,6 +63,7 @@ export class JsonRpcClient {
   }
 
   async initialize(): Promise<void> {
+    // Minimal v2 handshake before issuing thread/turn calls.
     await this.request("initialize", {
       protocolVersion: 2,
       capabilities: {

@@ -5,6 +5,7 @@ import { createProvider, createSessionProvider, providerMode } from "./providers
 import type { InteractiveSessionProvider } from "./types/events.js";
 
 async function runCommand(task: string): Promise<void> {
+  // `run` is intentionally transport-agnostic. Provider selection happens in the factory.
   const provider = createProvider();
   for await (const event of provider.runTask(task, { cwd: process.cwd() })) {
     renderEvent(event);
@@ -12,6 +13,7 @@ async function runCommand(task: string): Promise<void> {
 }
 
 function interactiveProviderOrFail(): InteractiveSessionProvider {
+  // steer/interrupt only exist on the interactive RPC provider.
   const provider = createSessionProvider() as InteractiveSessionProvider | null;
   if (!provider || typeof provider.steerTurn !== "function" || typeof provider.interruptTurn !== "function") {
     throw new Error("steer/interrupt require NANO_PROVIDER=rpc");

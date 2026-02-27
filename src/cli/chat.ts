@@ -43,6 +43,7 @@ export async function runChat(resumeId?: string): Promise<void> {
   }
 
   if (sessionProvider) {
+    // In RPC mode we maintain a remote thread and map it to local session metadata.
     if (resumeId && existingSession?.remoteThreadId) {
       const resumed = await sessionProvider.resumeSession(existingSession.remoteThreadId);
       if (!resumed) {
@@ -80,6 +81,7 @@ export async function runChat(resumeId?: string): Promise<void> {
     await appendTranscript(sessionId, { role: "user", content: line, createdAt: new Date().toISOString() });
     const transcript = await readTranscript(sessionId);
     const todoContext = await todoManager.renderForPrompt();
+    // Prompt assembly keeps the model stateless from the transport perspective.
     const prompt = `${buildHistoryPrompt(transcript, line)}\n\nCurrent todos:\n${todoContext}`;
 
     let assistantBuffer = "";
@@ -90,6 +92,7 @@ export async function runChat(resumeId?: string): Promise<void> {
       renderEvent(event);
       await appendEvent(sessionId, event);
       if (event.type === "approval_required" && interactiveProvider) {
+        // Approval requests are paused here and resolved by the user in-band.
         const requestId = (event.payload as Record<string, unknown>).requestId;
         if (typeof requestId === "string" || typeof requestId === "number") {
           const answer = (await rl.question("approve action? [y/N] ")).trim().toLowerCase();

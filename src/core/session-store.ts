@@ -74,6 +74,7 @@ export async function setRemoteThreadId(id: string, remoteThreadId: string): Pro
 
 export async function appendTranscript(id: string, message: ChatMessage): Promise<void> {
   await mkdir(sessionDir(id), { recursive: true });
+  // JSONL keeps appends cheap and makes manual debugging straightforward.
   await writeFile(transcriptPath(id), JSON.stringify(message) + "\n", { encoding: "utf8", flag: "a" });
   await touchSession(id);
 }
@@ -92,6 +93,7 @@ export async function readTranscript(id: string): Promise<ChatMessage[]> {
 
 export async function appendEvent(id: string, event: RuntimeEvent): Promise<void> {
   await mkdir(sessionDir(id), { recursive: true });
+  // Runtime events are intentionally stored separately from chat messages.
   await writeFile(eventPath(id), JSON.stringify({ ts: new Date().toISOString(), event }) + "\n", {
     encoding: "utf8",
     flag: "a"
@@ -117,6 +119,7 @@ export async function listSessions(): Promise<SessionMeta[]> {
 }
 
 export function buildHistoryPrompt(messages: ChatMessage[], userInput: string): string {
+  // Keep history bounded to limit prompt growth and runaway token usage.
   const history = messages
     .slice(-20)
     .map((msg) => `${msg.role.toUpperCase()}: ${msg.content}`)

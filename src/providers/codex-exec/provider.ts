@@ -16,11 +16,13 @@ export class CodexExecProvider implements Provider {
     });
 
     let pending = "";
+    // Queue decouples child-process event arrival from async generator consumption.
     const queue: RuntimeEvent[] = [];
     let done = false;
 
     child.stdout.setEncoding("utf8");
     child.stdout.on("data", (chunk: string) => {
+      // stdout is chunked arbitrarily, so parse incrementally as JSONL.
       const parsed = parseJsonlChunk(pending + chunk);
       pending = parsed.rest;
       for (const line of parsed.lines) {

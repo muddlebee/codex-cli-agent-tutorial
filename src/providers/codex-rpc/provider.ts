@@ -39,6 +39,7 @@ export class CodexRpcProvider implements InteractiveSessionProvider {
   }
 
   async *runTask(input: string, _options?: ProviderRunOptions): AsyncGenerator<RuntimeEvent> {
+    // One-shot compatibility path so CLI `run` works in either provider mode.
     const sessionId = await this.startSession();
     for await (const event of this.sendTurn(sessionId, input)) {
       yield event;
@@ -68,6 +69,7 @@ export class CodexRpcProvider implements InteractiveSessionProvider {
 
     let done = false;
     while (!done) {
+      // Notifications are polled in short intervals to keep implementation simple.
       const notifications = client.drainNotifications();
       for (const note of notifications) {
         if (!note.method) {
