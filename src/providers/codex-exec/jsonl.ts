@@ -20,6 +20,10 @@ function pullName(data: Record<string, unknown>): string {
   return String(data.method ?? data.event ?? data.type ?? "unknown");
 }
 
+function getString(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
 export function mapCodexEvent(line: string): RuntimeEvent {
   try {
     const parsed = JSON.parse(line) as Record<string, unknown>;
@@ -36,34 +40,49 @@ export function mapCodexEvent(line: string): RuntimeEvent {
     if (name.includes("agentMessage") && typeof params.delta === "string") {
       return { type: "assistant_delta", text: params.delta };
     }
-    if (name.includes("item/started")) {
-      return { type: "item_started", itemType: String(params.itemType ?? "item"), id: String(params.id ?? "") || undefined };
+    if (name.includes("item/started") || name.includes("item.started")) {
+      const item = (params.item ?? {}) as Record<string, unknown>;
+      const itemType = getString(params.itemType) ?? getString(item.type) ?? "item";
+      const id = getString(params.id) ?? getString(item.id);
+      return { type: "item_started", itemType, id };
     }
-    if (name.includes("item/updated")) {
+    if (name.includes("item/updated") || name.includes("item.updated")) {
+      const item = (params.item ?? {}) as Record<string, unknown>;
+      const itemType = getString(params.itemType) ?? getString(item.type) ?? "item";
+      const id = getString(params.id) ?? getString(item.id);
+      const delta = getString(params.delta) ?? getString(item.delta);
       return {
         type: "item_updated",
-        itemType: String(params.itemType ?? "item"),
-        id: String(params.id ?? "") || undefined,
-        delta: typeof params.delta === "string" ? params.delta : undefined
+        itemType,
+        id,
+        delta
       };
     }
-    if (name.includes("item/completed")) {
+    if (name.includes("item/completed") || name.includes("item.completed")) {
+      const item = (params.item ?? {}) as Record<string, unknown>;
+      const itemType = getString(params.itemType) ?? getString(item.type) ?? "item";
+      const id = getString(params.id) ?? getString(item.id);
+      const text = getString(item.text);
+      if (itemType === "agent_message" && text) {
+        // Newer Codex event shape sends full assistant text in item.completed.
+        return { type: "assistant_delta", text };
+      }
       return {
         type: "item_completed",
-        itemType: String(params.itemType ?? "item"),
-        id: String(params.id ?? "") || undefined,
-        summary: typeof params.summary === "string" ? params.summary : undefined
+        itemType,
+        id,
+        summary: getString(params.summary) ?? text
       };
     }
     if (name.includes("requestApproval")) {
       const kind = name.includes("command") ? "command" : name.includes("file") ? "file_change" : "unknown";
       return { type: "approval_required", kind, payload: params };
     }
-    if (name.includes("turn/completed") || name.includes("TurnCompleted")) {
+    if (name.includes("turn/completed") || name.includes("turn.completed") || name.includes("TurnCompleted")) {
       const usage = (params.usage ?? undefined) as Record<string, number> | undefined;
       return { type: "turn_completed", usage };
     }
-    if (name.includes("turn/failed") || name.includes("TurnFailed")) {
+    if (name.includes("turn/failed") || name.includes("turn.failed") || name.includes("TurnFailed")) {
       return { type: "turn_failed", error: String(params.error ?? "turn failed") };
     }
     if (name.includes("error")) {
