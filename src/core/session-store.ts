@@ -52,6 +52,9 @@ function metaPath(id: string): string {
   return join(sessionDir(id), "meta.json");
 }
 
+/**
+ * Creates a new local session directory and metadata file.
+ */
 export async function createSession(): Promise<SessionMeta> {
   const id = randomUUID();
   const now = new Date().toISOString();
@@ -70,6 +73,9 @@ export async function loadSession(id: string): Promise<SessionMeta | null> {
   return JSON.parse(raw) as SessionMeta;
 }
 
+/**
+ * Updates `updatedAt` in session metadata to indicate recent activity.
+ */
 export async function touchSession(id: string): Promise<void> {
   const existing = await loadSession(id);
   if (!existing) {
@@ -89,6 +95,9 @@ export async function setRemoteThreadId(id: string, remoteThreadId: string): Pro
   await writeFile(metaPath(id), JSON.stringify(existing, null, 2) + "\n", "utf8");
 }
 
+/**
+ * Appends one user/assistant message to transcript.jsonl.
+ */
 export async function appendTranscript(id: string, message: ChatMessage): Promise<void> {
   await mkdir(sessionDir(id), { recursive: true });
   // JSONL keeps appends cheap and makes manual debugging straightforward.
@@ -109,6 +118,9 @@ export async function readTranscript(id: string): Promise<ChatMessage[]> {
     .map((line) => JSON.parse(line) as ChatMessage);
 }
 
+/**
+ * Appends one normalized runtime event to events.jsonl.
+ */
 export async function appendEvent(id: string, event: RuntimeEvent): Promise<void> {
   await mkdir(sessionDir(id), { recursive: true });
   // Runtime events are intentionally stored separately from chat messages.
@@ -136,6 +148,9 @@ export async function listSessions(): Promise<SessionMeta[]> {
   return sessions.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
+/**
+ * Builds the prompt context from recent local transcript messages.
+ */
 export function buildHistoryPrompt(messages: ChatMessage[], userInput: string): string {
   // Keep history bounded to limit prompt growth and runaway token usage.
   // For production, consider more sophisticated strategies:

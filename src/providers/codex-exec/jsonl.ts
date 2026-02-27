@@ -8,6 +8,11 @@ const AnyEvent = z.object({
   type: z.string().optional()
 }).passthrough();
 
+/**
+ * Splits a possibly-partial JSONL stream buffer into:
+ * - complete lines ready to parse now
+ * - trailing remainder to keep for the next chunk
+ */
 export function parseJsonlChunk(buffer: string): { lines: string[]; rest: string } {
   // Keep the trailing partial line for the next chunk.
   const parts = buffer.split("\n");
@@ -20,10 +25,17 @@ function pullName(data: Record<string, unknown>): string {
   return String(data.method ?? data.event ?? data.type ?? "unknown");
 }
 
+/**
+ * Helper for safely extracting optional non-empty strings from unknown values.
+ */
 function getString(value: unknown): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
+/**
+ * Maps one raw JSONL event line from `codex exec --json` into the internal
+ * RuntimeEvent union used by the rest of the CLI.
+ */
 export function mapCodexEvent(line: string): RuntimeEvent {
   try {
     const parsed = JSON.parse(line) as Record<string, unknown>;

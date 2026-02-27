@@ -1,5 +1,11 @@
 import type { RuntimeEvent } from "../types/events.js";
 
+/**
+ * Converts normalized runtime events into terminal output.
+ *
+ * Note: This renderer is intentionally minimal. Unknown events are ignored so
+ * the CLI remains stable while event mapping evolves.
+ */
 export function renderEvent(event: RuntimeEvent): void {
   switch (event.type) {
     case "assistant_delta":

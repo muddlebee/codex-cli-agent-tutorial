@@ -20,11 +20,17 @@ export function providerMode(): "exec" | "rpc" {
   return mode === "rpc" ? "rpc" : "exec";
 }
 
+/**
+ * Returns a provider suitable for one-shot task execution.
+ */
 export function createProvider(): Provider {
   // Default to exec so local setup works even without app-server installed.
   return providerMode() === "rpc" ? new CodexRpcProvider() : new CodexExecProvider();
 }
 
+/**
+ * Returns a provider with session semantics when available (RPC mode).
+ */
 export function createSessionProvider(): SessionProvider | null {
   // Exec mode doesn't support sessions natively (it's stateless).
   // The chat loop handles this gracefully by falling back to runTask().

@@ -2,7 +2,16 @@ import { spawn } from "node:child_process";
 import type { Provider, ProviderRunOptions, RuntimeEvent } from "../../types/events.js";
 import { mapCodexEvent, parseJsonlChunk } from "./jsonl.js";
 
+/**
+ * Provider implementation that wraps `codex exec --json`.
+ *
+ * This mode is stateless from Codex's perspective (each run is independent),
+ * so session continuity is handled in this project by prompt reconstruction.
+ */
 export class CodexExecProvider implements Provider {
+  /**
+   * Runs a single task and yields normalized runtime events as they arrive.
+   */
   async *runTask(input: string, options?: ProviderRunOptions): AsyncGenerator<RuntimeEvent> {
     const args = ["exec", "--json", input];
     if (options?.model) {

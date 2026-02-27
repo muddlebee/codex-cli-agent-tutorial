@@ -1,5 +1,12 @@
 import type { TodoManager } from "../core/todo-manager.js";
 
+/**
+ * Handles `/todo ...` slash commands.
+ *
+ * Returns:
+ * - `null` when the input is not a todo command (caller should treat input as normal prompt)
+ * - a user-facing status message when the command is handled
+ */
 export async function handleTodoCommand(manager: TodoManager, line: string): Promise<string | null> {
   if (!line.startsWith("/todo")) {
     return null;
