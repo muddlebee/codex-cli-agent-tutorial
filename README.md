@@ -5,7 +5,9 @@ Incremental nano agent CLI built on Codex APIs (no direct OpenAI SDK usage).
 ## Tutorial Mode
 
 This repo is a single evolving CLI with tutorial checkpoints.
-Read milestone docs in order:
+Best way to learn: checkout milestone tags (`m0` -> `m4`) and follow chapter docs.
+
+Read in order:
 
 - [Overview](docs/tutorial-overview.md)
 - [m0](docs/m0.md)
@@ -13,6 +15,25 @@ Read milestone docs in order:
 - [m2](docs/m2.md)
 - [m3](docs/m3.md)
 - [m4](docs/m4.md)
+
+## Checkpoint-First Workflow
+
+```bash
+# Start from first lesson
+git checkout m0
+npm install
+npm run lint
+npm test
+
+# Move forward lesson by lesson
+git checkout m1
+git checkout m2
+git checkout m3
+git checkout m4
+
+# Return to latest code
+git checkout main
+```
 
 ## Milestones
 
